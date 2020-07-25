@@ -68,7 +68,7 @@ class TwitterExtractor(Extractor):
             tdata.update(metadata)
 
             yield Message.Directory, tdata
-            if not hasattr(tweet, "extended_entities"):
+            if tweet.get("extended_entities") is None:
                 # NOTE (Flying): Saves no-media tweets as {id}_None.html and {id}_None.html.json.
                 url = self.root
                 tdata["extension"] = None
