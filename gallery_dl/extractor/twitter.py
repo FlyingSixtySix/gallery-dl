@@ -60,51 +60,58 @@ class TwitterExtractor(Extractor):
 
             if self.twitpic:
                 self._extract_twitpic(tweet)
-            if "extended_entities" not in tweet:
-                continue
+            # NOTE (Flying): Commenting below allows tweets with no media.
+            # if "extended_entities" not in tweet:
+            #     continue
 
             tdata = self._transform_tweet(tweet)
             tdata.update(metadata)
 
             yield Message.Directory, tdata
-            for tdata["num"], media in enumerate(
-                    tweet["extended_entities"]["media"], 1):
+            if not hasattr(tweet, "extended_entities"):
+                # NOTE (Flying): Saves no-media tweets as {id}_None.html and {id}_None.html.json.
+                url = self.root
+                tdata["extension"] = None
+                yield Message.Url, url, tdata
+            else:
+                for tdata["num"], media in enumerate(
+                        tweet["extended_entities"]["media"], 1):
 
-                tdata["width"] = media["original_info"].get("width", 0)
-                tdata["height"] = media["original_info"].get("height", 0)
+                    tdata["width"] = media["original_info"].get("width", 0)
+                    tdata["height"] = media["original_info"].get("height", 0)
 
-                if "video_info" in media:
+                    if "video_info" in media:
 
-                    if self.videos == "ytdl":
-                        url = "ytdl:{}/i/web/status/{}".format(
-                            self.root, tweet["id_str"])
-                        tdata["extension"] = None
-                        yield Message.Url, url, tdata
+                        if self.videos == "ytdl":
+                            url = "ytdl:{}/i/web/status/{}".format(
+                                self.root, tweet["id_str"])
+                            tdata["extension"] = None
+                            yield Message.Url, url, tdata
 
-                    elif self.videos:
-                        video_info = media["video_info"]
-                        variant = max(
-                            video_info["variants"],
-                            key=lambda v: v.get("bitrate", 0),
-                        )
-                        tdata["duration"] = video_info.get(
-                            "duration_millis", 0) / 1000
-                        tdata["bitrate"] = variant.get("bitrate", 0)
+                        elif self.videos:
+                            video_info = media["video_info"]
+                            variant = max(
+                                video_info["variants"],
+                                key=lambda v: v.get("bitrate", 0),
+                            )
+                            tdata["duration"] = video_info.get(
+                                "duration_millis", 0) / 1000
+                            tdata["bitrate"] = variant.get("bitrate", 0)
 
-                        url = variant["url"]
+                            url = variant["url"]
+                            text.nameext_from_url(url, tdata)
+                            yield Message.Url, url, tdata
+
+                    elif "media_url_https" in media:
+                        url = media["media_url_https"]
+                        urls = [url + size for size in self.sizes]
+                        text.nameext_from_url(url, tdata)
+                        yield Message.Urllist, urls, tdata
+
+                    else:
+                        url = media["media_url"]
                         text.nameext_from_url(url, tdata)
                         yield Message.Url, url, tdata
-
-                elif "media_url_https" in media:
-                    url = media["media_url_https"]
-                    urls = [url + size for size in self.sizes]
-                    text.nameext_from_url(url, tdata)
-                    yield Message.Urllist, urls, tdata
-
-                else:
-                    url = media["media_url"]
-                    text.nameext_from_url(url, tdata)
-                    yield Message.Url, url, tdata
 
     def _extract_twitpic(self, tweet):
         twitpics = []
